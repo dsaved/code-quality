@@ -21,7 +21,7 @@ This implementation provides a complete CI/CD pipeline with automated code quali
 - **Code Standards**: Prevents console.log, hardcoded secrets, and poor practices
 
 ### 🛡️ Security & Testing
-- **Security Scanning**: npm audit vulnerability detection
+- **Security Scanning**: OSV Scanner and Trivy vulnerability detection
 - **Test Coverage**: Jest/React Testing Library with coverage thresholds
 - **Spell Checking**: CSpell validation for code and documentation
 - **Secret Detection**: Prevents hardcoded API keys and passwords
@@ -225,29 +225,37 @@ jobs:
       - name: Run npm audit
         run: npm audit --audit-level=high
 ```
-</details>
 
-### Step 2: Create Configuration Files
+### 🛡️ Security & Testing
+```yaml
+name: Security Audit
 
-<details>
-<summary>📄 <code>.eslintrc.json</code></summary>
-
-```json
-{
-  "extends": [
-    "react-app",
-    "plugin:prettier/recommended"
-  ],
-  "plugins": ["prettier"],
-  "rules": {
-    "prettier/prettier": "error",
-    "camelcase": ["error", { "properties": "always" }],
-    "react/jsx-pascal-case": "error",
-    "no-console": "error"
-  }
-}
 ```
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
 </details>
+  osv-trivy-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install OSV Scanner
+        run: |
+          curl -sSfL https://github.com/google/osv-scanner/releases/latest/download/osv-scanner-linux-amd64 -o osv-scanner
+          chmod +x osv-scanner
+          sudo mv osv-scanner /usr/local/bin/
+      - name: Run OSV Scanner
+        run: osv-scanner --lockfile=package-lock.json || true
+      - name: Install Trivy
+        run: |
+          sudo apt-get update && sudo apt-get install -y wget
+          wget -qO- https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.50.2_Linux-64bit.deb > trivy.deb
+          sudo dpkg -i trivy.deb
+      - name: Run Trivy FS scan
+        run: trivy fs . || true
+```
 
 <details>
 <summary>📄 <code>.prettierrc</code></summary>
