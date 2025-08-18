@@ -15,24 +15,28 @@ This implementation provides a complete CI/CD pipeline with automated code quali
 ## ✨ Features
 
 ### 🔍 Code Quality Checks
+
 - **ESLint**: TypeScript/JavaScript linting with custom rules
 - **Prettier**: Automated code formatting validation
 - **Naming Conventions**: Enforces kebab-case files, PascalCase classes, camelCase variables
 - **Code Standards**: Prevents console.log, hardcoded secrets, and poor practices
 
 ### 🛡️ Security & Testing
+
 - **Security Scanning**: OSV Scanner and Trivy vulnerability detection
 - **Test Coverage**: Jest unit and e2e testing with coverage thresholds
 - **Spell Checking**: CSpell validation for code and documentation
 - **Secret Detection**: Prevents hardcoded API keys and passwords
 
 ### 🚀 CI/CD Pipeline
+
 - **Multi-Node Testing**: Tests on Node.js 18.x and 20.x
 - **Database Integration**: PostgreSQL test database setup
 - **Parallel Execution**: Multiple checks run simultaneously
 - **Coverage Reporting**: Built-in coverage reports and thresholds
 
 ### 📋 Team Collaboration
+
 - **CODEOWNERS**: Automatic reviewer assignment
 - **PR Templates**: Standardized pull request format
 - **Status Checks**: Clear pass/fail indicators on PRs
@@ -96,18 +100,18 @@ name: CI
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     strategy:
       matrix:
         node-version: [18.x, 20.x]
-    
+
     services:
       postgres:
         image: postgres:13
@@ -123,36 +127,37 @@ jobs:
           - 5432:5432
 
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-    
-    - name: Install dependencies
-      run: npm ci
-    
-    - name: Run ESLint
-      run: npm run lint:check
-    
-    - name: Run Prettier Check
-      run: npm run format:check
-    
-    - name: Build application
-      run: npm run build
-    
-    - name: Run Unit Tests
-      run: npm run test:cov
-      env:
-        NODE_ENV: test
-        DB_HOST: localhost
-        DB_PORT: 5432
-        DB_USERNAME: postgres
-        DB_PASSWORD: postgres
-        DB_NAME: test_db
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint:check
+
+      - name: Run Prettier Check
+        run: npm run format:check
+
+      - name: Build application
+        run: npm run build
+
+      - name: Run Unit Tests
+        run: npm run test:cov
+        env:
+          NODE_ENV: test
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: test_db
 ```
+
 </details>
 
 <details>
@@ -163,45 +168,46 @@ name: Naming Conventions
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [main, develop]
   pull_request:
-    branches: [ main, develop ]
+    branches: [main, develop]
 
 jobs:
   naming-conventions:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Check file naming conventions
-      run: |
-        echo "Checking for kebab-case file naming..."
-        
-        # Check TypeScript files (excluding spec files)
-        if find src -name "*.ts" -not -path "*/node_modules/*" | grep -E '[A-Z]|_' | grep -v '\.spec\.ts$' | grep -v '\.test\.ts$'; then
-          echo "❌ Found files that don't follow kebab-case naming convention"
-          exit 1
-        fi
-        
-        echo "✅ All files follow kebab-case naming convention"
-    
-    - name: Check for console.log statements
-      run: |
-        if grep -r "console\.log" src --include="*.ts" --include="*.js"; then
-          echo "❌ Found console.log statements in source code"
-          exit 1
-        fi
-        echo "✅ No console.log statements found"
-    
-    - name: Check for hardcoded secrets
-      run: |
-        if grep -r -E "(password|secret|key|token)\s*=\s*['\"][^'\"]{8,}" src --include="*.ts" --include="*.js"; then
-          echo "❌ Found potential hardcoded secrets"
-          exit 1
-        fi
-        echo "✅ No hardcoded secrets detected"
+      - uses: actions/checkout@v4
+
+      - name: Check file naming conventions
+        run: |
+          echo "Checking for kebab-case file naming..."
+
+          # Check TypeScript files (excluding spec files)
+          if find src -name "*.ts" -not -path "*/node_modules/*" | grep -E '[A-Z]|_' | grep -v '\.spec\.ts$' | grep -v '\.test\.ts$'; then
+            echo "❌ Found files that don't follow kebab-case naming convention"
+            exit 1
+          fi
+
+          echo "✅ All files follow kebab-case naming convention"
+
+      - name: Check for console.log statements
+        run: |
+          if grep -r "console\.log" src --include="*.ts" --include="*.js"; then
+            echo "❌ Found console.log statements in source code"
+            exit 1
+          fi
+          echo "✅ No console.log statements found"
+
+      - name: Check for hardcoded secrets
+        run: |
+          if grep -r -E "(password|secret|key|token)\s*=\s*['\"][^'\"]{8,}" src --include="*.ts" --include="*.js"; then
+            echo "❌ Found potential hardcoded secrets"
+            exit 1
+          fi
+          echo "✅ No hardcoded secrets detected"
 ```
+
 </details>
 
 <details>
@@ -212,28 +218,29 @@ name: Spell Check
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [development]
   pull_request:
-    branches: [ main, develop ]
+    branches: [development]
 
 jobs:
   spelling:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20.x'
-    
-    - name: Install CSpell
-      run: npm install -g cspell
-    
-    - name: Run spell check
-      run: cspell "src/**/*.{ts,js}" "**/*.md" "**/*.json" --config .cspell.json
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+
+      - name: Install CSpell
+        run: npm install -g cspell
+
+      - name: Run spell check
+        run: cspell "src/**/*.{ts,js}" "api/**/*.md" "**/*.json" --config .cspell.json
 ```
+
 </details>
 
 <details>
@@ -244,9 +251,9 @@ name: Security Audit
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [development]
   pull_request:
-    branches: [ main, develop ]
+    branches: [development]
 
 jobs:
   osv-trivy-scan:
@@ -255,19 +262,67 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install OSV Scanner
         run: |
-          curl -sSfL https://github.com/google/osv-scanner/releases/latest/download/osv-scanner-linux-amd64 -o osv-scanner
+          curl -sSfL https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64 -o osv-scanner
           chmod +x osv-scanner
           sudo mv osv-scanner /usr/local/bin/
-      - name: Run OSV Scanner
-        run: osv-scanner --lockfile=package-lock.json || true
+      - name: Run OSV Scanner on lockfiles and fail on vulnerabilities
+        continue-on-error: true
+        run: |
+          if [ -f yarn.lock ]; then
+            osv-scanner --lockfile=api/yarn.lock | tee osv-report.txt
+            # Only fail if vulnerabilities count is nonzero in OSV report
+            if grep -E 'Vulnerabilities:[[:space:]]*[1-9][0-9]*' osv-report.txt; then
+              echo "VULN_FOUND=true" >> $GITHUB_ENV
+              echo "❌ Vulnerabilities found!"
+              exit 1
+            fi
+          elif [ -f package-lock.json ]; then
+            osv-scanner --lockfile=package-lock.json | tee osv-report.txt
+            if grep -E 'Vulnerabilities:[[:space:]]*[1-9][0-9]*' osv-report.txt; then
+              echo "VULN_FOUND=true" >> $GITHUB_ENV
+              echo "❌ Vulnerabilities found!"
+              exit 1
+            fi
+          else
+            echo "No lockfile found. Skipping vulnerability scan."
+          fi
       - name: Install Trivy
         run: |
           sudo apt-get update && sudo apt-get install -y wget
-          wget -qO- https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.50.2_Linux-64bit.deb > trivy.deb
+          wget -qO trivy.deb https://github.com/aquasecurity/trivy/releases/download/v0.65.0/trivy_0.65.0_Linux-64bit.deb
           sudo dpkg -i trivy.deb
       - name: Run Trivy FS scan
-        run: trivy fs . || true
+        continue-on-error: true
+        run: |
+          trivy fs . --exit-code 1 --severity MEDIUM,HIGH,CRITICAL | tee trivy-report.txt
+          # Only fail if vulnerabilities count is nonzero in Trivy report summary for lockfiles
+          if grep -E '│ (yarn.lock|package-lock.json) │ [^│]+ │[[:space:]]*[1-9][0-9]*[[:space:]]*│' trivy-report.txt; then
+            echo "VULN_FOUND=true" >> $GITHUB_ENV
+            echo "❌ Vulnerabilities found by Trivy!"
+            exit 1
+          fi
+      - name: Send vulnerability report email
+        if: env.VULN_FOUND == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: 465
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Vulnerability Scan Failed - ${{ github.repository }}"
+          to: ${{ secrets.SMTP_MAIL_TO }}
+          from: ${{ secrets.SMTP_MAIL_FROM }}
+          body: |
+            The vulnerability scan failed for ${{ github.repository }}.
+            See attached reports for details.
+          attachments: |
+            osv-report.txt
+            trivy-report.txt
+      - name: Fail job if vulnerabilities found
+        if: env.VULN_FOUND == 'true'
+        run: exit 1
 ```
+
 </details>
 
 ### Step 2: Create Configuration Files
@@ -277,43 +332,53 @@ jobs:
 
 ```javascript
 module.exports = {
-  parser: '@typescript-eslint/parser',
+  parser: "@typescript-eslint/parser",
   parserOptions: {
-    project: 'tsconfig.json',
+    project: "tsconfig.json",
     tsconfigRootDir: __dirname,
-    sourceType: 'module',
+    sourceType: "module",
   },
-  plugins: ['@typescript-eslint/eslint-plugin'],
+  plugins: ["@typescript-eslint/eslint-plugin"],
   extends: [
-    'plugin:@typescript-eslint/recommended',
-    'plugin:prettier/recommended',
+    "plugin:@typescript-eslint/recommended",
+    "plugin:prettier/recommended",
   ],
   root: true,
   env: {
     node: true,
     jest: true,
   },
-  ignorePatterns: ['.eslintrc.js', 'dist/', 'node_modules/'],
+  ignorePatterns: [".eslintrc.js", "dist/", "node_modules/"],
   rules: {
     // Naming Conventions
-    '@typescript-eslint/naming-convention': [
-      'error',
-      { selector: 'default', format: ['camelCase'] },
-      { selector: 'variable', format: ['camelCase', 'UPPER_CASE'] },
-      { selector: 'parameter', format: ['camelCase'], leadingUnderscore: 'allow' },
-      { selector: 'memberLike', modifiers: ['private'], format: ['camelCase'], leadingUnderscore: 'require' },
-      { selector: 'typeLike', format: ['PascalCase'] },
-      { selector: 'enumMember', format: ['UPPER_CASE'] },
+    "@typescript-eslint/naming-convention": [
+      "error",
+      { selector: "default", format: ["camelCase"] },
+      { selector: "variable", format: ["camelCase", "UPPER_CASE"] },
+      {
+        selector: "parameter",
+        format: ["camelCase"],
+        leadingUnderscore: "allow",
+      },
+      {
+        selector: "memberLike",
+        modifiers: ["private"],
+        format: ["camelCase"],
+        leadingUnderscore: "require",
+      },
+      { selector: "typeLike", format: ["PascalCase"] },
+      { selector: "enumMember", format: ["UPPER_CASE"] },
     ],
-    
+
     // Code Quality
-    'no-console': 'error',
-    'no-debugger': 'error',
-    '@typescript-eslint/no-unused-vars': 'error',
-    '@typescript-eslint/no-explicit-any': 'warn',
+    "no-console": "error",
+    "no-debugger": "error",
+    "@typescript-eslint/no-unused-vars": "error",
+    "@typescript-eslint/no-explicit-any": "warn",
   },
 };
 ```
+
 </details>
 
 <details>
@@ -333,6 +398,7 @@ module.exports = {
   ]
 }
 ```
+
 </details>
 
 <details>
@@ -355,6 +421,7 @@ module.exports = {
 # CI/CD
 /.github/ @yourteam/devops-team
 ```
+
 </details>
 
 ### Step 3: Update Package Scripts
@@ -375,22 +442,26 @@ Add these scripts to your `package.json`:
 ## 📊 Naming Conventions Enforced
 
 ### 📁 File & Directory Naming
+
 - **Files**: `kebab-case.ts` ✅ | `camelCase.ts` ❌ | `PascalCase.ts` ❌
 - **Directories**: `user-management/` ✅ | `userManagement/` ❌
 
 ### 🏗️ Code Naming
+
 - **Classes**: `UserService` ✅ | `userService` ❌
 - **Variables**: `userData` ✅ | `user_data` ❌
 - **Constants**: `API_KEY` ✅ | `apiKey` ❌
 - **Interfaces**: `IUserRepository` ✅ | `UserRepository` ❌
 
 ### 🌐 API Naming
+
 - **Endpoints**: `/api/users` ✅ | `/api/Users` ❌
 - **Routes**: `@Get('user-profile')` ✅ | `@Get('userProfile')` ❌
 
 ## 🛡️ Security Checks
 
 ### 🚫 Prevented Patterns
+
 ```typescript
 // ❌ Hardcoded secrets (detected)
 const apiKey = "sk_live_abc123def456";
@@ -407,12 +478,14 @@ this.logger.debug("Debug info");
 ## 📈 Coverage Requirements
 
 ### 🎯 Thresholds
+
 - **Lines**: 80% minimum
-- **Functions**: 80% minimum  
+- **Functions**: 80% minimum
 - **Branches**: 80% minimum
 - **Statements**: 80% minimum
 
 ### 📝 Coverage Reports
+
 - **HTML**: `coverage/index.html`
 - **LCOV**: `coverage/lcov.info`
 - **Terminal**: Real-time feedback
@@ -420,6 +493,7 @@ this.logger.debug("Debug info");
 ## 🔄 Pull Request Workflow
 
 ### 1. Developer Creates PR
+
 ```bash
 git checkout -b feature/user-authentication
 # Make changes...
@@ -427,6 +501,7 @@ git push origin feature/user-authentication
 ```
 
 ### 2. Automated Checks Run
+
 ```
 🔄 CI / test (18.x)           - Installing dependencies...
 🔄 CI / test (20.x)           - Running ESLint...
@@ -436,15 +511,17 @@ git push origin feature/user-authentication
 ```
 
 ### 3. Results Display
+
 ```
 ✅ CI / test (18.x)           - All tests passed
-✅ CI / test (20.x)           - All tests passed  
+✅ CI / test (20.x)           - All tests passed
 ✅ Naming Conventions         - All conventions followed
 ✅ Spell Check               - No spelling errors
 ❌ Security                  - 2 vulnerabilities found
 ```
 
 ### 4. Merge Protection
+
 - ❌ Cannot merge until all checks pass
 - ✅ Auto-merge available when all green
 - 📝 Required reviewers notified via CODEOWNERS
@@ -452,16 +529,19 @@ git push origin feature/user-authentication
 ## ⚙️ GitHub Repository Setup
 
 ### 1. Enable GitHub Actions
+
 ```bash
 # Repository Settings → Actions → General
 # ✅ Allow all actions and reusable workflows
 ```
 
 ### 2. Add Required Secrets
+
 ```bash
 # Repository Settings → Secrets and variables → Actions
 SNYK_TOKEN=your_snyk_token_here
 ```
+
 ```bash
 # Repository Settings → Branches → Add rule
 # Branch name pattern: main
@@ -471,6 +551,7 @@ SNYK_TOKEN=your_snyk_token_here
 ```
 
 ### 3. Configure Branch Protection
+
 ```bash
 # Repository Settings → Branches → Add rule
 # Branch name pattern: main
@@ -482,6 +563,7 @@ SNYK_TOKEN=your_snyk_token_here
 ## 🧪 Testing the Implementation
 
 ### 1. Create Test Branch
+
 ```bash
 git checkout -b test/github-checks
 ```
@@ -498,6 +580,7 @@ git add . && git commit -m "test: wrong file naming"
 git push origin test/github-checks
 # Check GitHub Actions - should fail naming-conventions
 ```
+
 </details>
 
 <details>
@@ -510,6 +593,7 @@ git add . && git commit -m "test: add console.log"
 git push origin test/github-checks
 # Check GitHub Actions - should fail linting
 ```
+
 </details>
 
 <details>
@@ -522,6 +606,7 @@ git add . && git commit -m "test: add spelling error"
 git push origin test/github-checks
 # Check GitHub Actions - should fail spell check
 ```
+
 </details>
 
 ## 🚨 Troubleshooting
@@ -533,13 +618,15 @@ git push origin test/github-checks
 
 **Problem**: Tests fail on specific Node.js versions
 
-**Solution**: 
+**Solution**:
+
 ```yaml
 # Update .github/workflows/ci.yml
 strategy:
   matrix:
-    node-version: [18.x, 20.x]  # Match your project's requirements
+    node-version: [18.x, 20.x] # Match your project's requirements
 ```
+
 </details>
 
 <details>
@@ -548,6 +635,7 @@ strategy:
 **Problem**: PostgreSQL service not accessible
 
 **Solution**:
+
 ```yaml
 # Ensure correct environment variables in ci.yml
 env:
@@ -557,6 +645,7 @@ env:
   DB_PASSWORD: postgres
   DB_NAME: test_db
 ```
+
 </details>
 
 <details>
@@ -565,6 +654,7 @@ env:
 **Problem**: Cannot reach 80% coverage requirement
 
 **Solution**:
+
 ```javascript
 // Adjust jest.config.js
 coverageThreshold: {
@@ -576,6 +666,7 @@ coverageThreshold: {
   }
 }
 ```
+
 </details>
 
 <details>
@@ -584,6 +675,7 @@ coverageThreshold: {
 **Problem**: Too many linting errors blocking development
 
 **Solution**:
+
 ```javascript
 // Adjust .eslintrc.js rules
 rules: {
@@ -591,6 +683,7 @@ rules: {
   '@typescript-eslint/no-explicit-any': 'off',  // Temporarily disable
 }
 ```
+
 </details>
 
 ### Getting Help
@@ -622,6 +715,7 @@ coverageThreshold: {
   }
 }
 ```
+
 </details>
 
 <details>
@@ -634,7 +728,7 @@ rules: {
   'prefer-const': 'error',
   'no-var': 'error',
   '@typescript-eslint/explicit-function-return-type': 'warn',
-  
+
   // Project-specific naming
   '@typescript-eslint/naming-convention': [
     'error',
@@ -643,6 +737,7 @@ rules: {
   ]
 }
 ```
+
 </details>
 
 <details>
@@ -658,7 +753,7 @@ rules: {
     "kubernetes",
     "dockerfile",
     "redis",
-    
+
     // Add your project/company terms
     "yourcompany",
     "projectname",
@@ -666,23 +761,27 @@ rules: {
   ]
 }
 ```
+
 </details>
 
 ## 📈 Benefits & ROI
 
 ### 👥 For Development Teams
+
 - **Consistency**: Uniform code style across all developers
 - **Quality**: Automatic detection of common issues
 - **Productivity**: Less time spent in code reviews on style issues
 - **Onboarding**: New developers follow standards automatically
 
-### 🏢 For Organizations  
+### 🏢 For Organizations
+
 - **Maintainability**: Consistent codebase easier to maintain
 - **Security**: Automated vulnerability detection
 - **Compliance**: Documentation and standards enforcement
 - **Velocity**: Faster development cycles with automated checks
 
 ### 📊 Measurable Improvements
+
 - **Code Review Time**: 40-60% reduction in review time
 - **Bug Detection**: 30-50% more issues caught before production
 - **Developer Satisfaction**: Reduced frustration with inconsistent standards
@@ -691,6 +790,7 @@ rules: {
 ## 🎯 Best Practices
 
 ### 📝 Commit Messages
+
 ```bash
 # Good commit messages
 git commit -m "feat: add user authentication endpoint"
@@ -698,19 +798,20 @@ git commit -m "fix: resolve memory leak in user service"
 git commit -m "docs: update API documentation"
 git commit -m "test: add unit tests for auth service"
 
-# Poor commit messages  
+# Poor commit messages
 git commit -m "fixed stuff"
 git commit -m "updates"
 git commit -m "wip"
 ```
 
 ### 🔄 Branch Strategy
+
 ```bash
 # Feature branches
 feature/user-authentication
 feature/payment-integration
 
-# Bug fix branches  
+# Bug fix branches
 fix/memory-leak-user-service
 fix/validation-error-handling
 
@@ -720,22 +821,25 @@ hotfix/critical-security-patch
 ```
 
 ### 📋 Code Review Process
+
 1. **Self-Review**: Check all automated status before requesting review
 2. **Small PRs**: Keep changes focused and reviewable
-3. **Documentation**: Update docs with functional changes  
+3. **Documentation**: Update docs with functional changes
 4. **Testing**: Include tests for new functionality
 5. **Breaking Changes**: Clearly document any breaking changes
 
 ## 🛣️ Roadmap
 
 ### 🔮 Planned Enhancements
+
 - [ ] **Performance Testing**: Lighthouse CI integration
-- [ ] **Accessibility**: A11y linting and testing  
+- [ ] **Accessibility**: A11y linting and testing
 - [ ] **Bundle Analysis**: Webpack bundle size monitoring
 - [ ] **Visual Regression**: Screenshot diff testing
 - [ ] **API Testing**: Automated contract testing
 
 ### 🚀 Advanced Features
+
 - [ ] **Multi-Environment**: Staging/production deployment pipelines
 - [ ] **Slack Integration**: Status notifications to team channels
 - [ ] **Metrics Dashboard**: Code quality metrics visualization

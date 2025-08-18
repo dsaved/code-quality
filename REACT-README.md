@@ -21,7 +21,7 @@ This implementation provides a complete CI/CD pipeline with automated code quali
 - **Code Standards**: Prevents console.log, hardcoded secrets, and poor practices
 
 ### 🛡️ Security & Testing
-- **Security Scanning**: OSV Scanner and Trivy vulnerability detection
+- **Security Scanning**: OSV Scanner and Trivy vulnerability detection (fail on vulnerabilities, email notification if configured)
 - **Test Coverage**: Jest/React Testing Library with coverage thresholds
 - **Spell Checking**: CSpell validation for code and documentation
 - **Secret Detection**: Prevents hardcoded API keys and passwords
@@ -208,54 +208,78 @@ name: Security Audit
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [development]
   pull_request:
-    branches: [ main, develop ]
+    branches: [development]
 
 jobs:
-  security:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run npm audit
-        run: npm audit --audit-level=high
-```
-
-### 🛡️ Security & Testing
-```yaml
-name: Security Audit
-
-```
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main, develop ]
-
-</details>
   osv-trivy-scan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install OSV Scanner
         run: |
-          curl -sSfL https://github.com/google/osv-scanner/releases/latest/download/osv-scanner-linux-amd64 -o osv-scanner
+          curl -sSfL https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64 -o osv-scanner
           chmod +x osv-scanner
           sudo mv osv-scanner /usr/local/bin/
-      - name: Run OSV Scanner
-        run: osv-scanner --lockfile=package-lock.json || true
+      - name: Run OSV Scanner on lockfiles and fail on vulnerabilities
+        continue-on-error: true
+        run: |
+          if [ -f yarn.lock ]; then
+            osv-scanner --lockfile=api/yarn.lock | tee osv-report.txt
+            # Only fail if vulnerabilities count is nonzero in OSV report
+            if grep -E 'Vulnerabilities:[[:space:]]*[1-9][0-9]*' osv-report.txt; then
+              echo "VULN_FOUND=true" >> $GITHUB_ENV
+              echo "❌ Vulnerabilities found!"
+              exit 1
+            fi
+          elif [ -f package-lock.json ]; then
+            osv-scanner --lockfile=package-lock.json | tee osv-report.txt
+            if grep -E 'Vulnerabilities:[[:space:]]*[1-9][0-9]*' osv-report.txt; then
+              echo "VULN_FOUND=true" >> $GITHUB_ENV
+              echo "❌ Vulnerabilities found!"
+              exit 1
+            fi
+          else
+            echo "No lockfile found. Skipping vulnerability scan."
+          fi
       - name: Install Trivy
         run: |
           sudo apt-get update && sudo apt-get install -y wget
-          wget -qO- https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.50.2_Linux-64bit.deb > trivy.deb
+          wget -qO trivy.deb https://github.com/aquasecurity/trivy/releases/download/v0.65.0/trivy_0.65.0_Linux-64bit.deb
           sudo dpkg -i trivy.deb
       - name: Run Trivy FS scan
-        run: trivy fs . || true
+        continue-on-error: true
+        run: |
+          trivy fs . --exit-code 1 --severity MEDIUM,HIGH,CRITICAL | tee trivy-report.txt
+          # Only fail if vulnerabilities count is nonzero in Trivy report summary for lockfiles
+          if grep -E '│ (yarn.lock|package-lock.json) │ [^│]+ │[[:space:]]*[1-9][0-9]*[[:space:]]*│' trivy-report.txt; then
+            echo "VULN_FOUND=true" >> $GITHUB_ENV
+            echo "❌ Vulnerabilities found by Trivy!"
+            exit 1
+          fi
+      - name: Send vulnerability report email
+        if: env.VULN_FOUND == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: 465
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "Vulnerability Scan Failed - ${{ github.repository }}"
+          to:  ${{ secrets.SMTP_MAIL_TO }}
+          from: ${{ secrets.SMTP_MAIL_FROM }}
+          body: |
+            The vulnerability scan failed for ${{ github.repository }}.
+            See attached reports for details.
+          attachments: |
+            osv-report.txt
+            trivy-report.txt
+      - name: Fail job if vulnerabilities found
+        if: env.VULN_FOUND == 'true'
+        run: exit 1
 ```
+</details>
 
 <details>
 <summary>📄 <code>.prettierrc</code></summary>
