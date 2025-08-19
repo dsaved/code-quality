@@ -130,41 +130,71 @@ name: Naming Conventions
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ staging ]
+    paths:
+    - 'src/**'
   pull_request:
-    branches: [ main, develop ]
+    branches: [ staging ]
+    paths:
+    - 'src/**'
 
 jobs:
   naming-conventions:
     runs-on: ubuntu-latest
-
+    
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Check file naming conventions
-        run: |
-          echo "Checking for kebab-case file naming..."
-          if find src -name "*.tsx" -not -path "*/node_modules/*" | grep -E '[A-Z]|_'; then
-            echo "❌ Found files that don't follow kebab-case naming convention"
-            exit 1
-          fi
-          echo "✅ All files follow kebab-case naming convention"
-
-      - name: Check for console.log statements
-        run: |
-          if grep -r "console\.log" src --include="*.js" --include="*.ts" --include="*.tsx"; then
-            echo "❌ Found console.log statements in source code"
-            exit 1
-          fi
-          echo "✅ No console.log statements found"
-
-      - name: Check for hardcoded secrets
-        run: |
-          if grep -r -E "(password|secret|key|token)\s*=\s*['\"][^'\"]{8,}" src --include="*.js" --include="*.ts" --include="*.tsx"; then
-            echo "❌ Found potential hardcoded secrets"
-            exit 1
-          fi
-          echo "✅ No hardcoded secrets detected"
+    - uses: actions/checkout@v4
+    
+    - name: Check React component naming conventions
+      run: |
+        echo "Checking React component naming conventions..."
+        # Check that .tsx files use PascalCase
+        if find src -name "*.tsx" -not -path "*/node_modules/*" | grep -E '^src/.*[a-z][A-Z].*\.tsx$|^src/.*[^A-Z][a-z].*\.tsx$' | grep -v -E '^src/.*/[A-Z][a-zA-Z]*\.tsx$'; then
+          echo "❌ Found .tsx component files that don't follow PascalCase naming convention"
+          echo "React components should use PascalCase (e.g., MyComponent.tsx)"
+          exit 1
+        fi
+        echo "✅ All React component files follow PascalCase naming convention"
+    
+    - name: Check TypeScript/JavaScript file naming conventions
+      run: |
+        echo "Checking TypeScript/JavaScript file naming conventions..."
+        # Check that non-component .ts files use camelCase or kebab-case
+        if find src -name "*.ts" -not -path "*/node_modules/*" | grep -v '\.spec\.ts$' | grep -v '\.test\.ts$' | grep -E '[A-Z][a-z].*[A-Z]'; then
+          echo "❌ Found .ts files that don't follow camelCase or kebab-case naming convention"
+          echo "Non-component TypeScript files should use camelCase or kebab-case"
+          exit 1
+        fi
+        echo "✅ All TypeScript files follow proper naming conventions"
+    
+    - name: Check for console.log statements
+      run: |
+        if grep -r "console\.log" src --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx"; then
+          echo "❌ Found console.log statements in source code"
+          echo "Please remove console.log statements before committing"
+          exit 1
+        fi
+        echo "✅ No console.log statements found"
+    
+    - name: Check for hardcoded secrets
+      run: |
+        if grep -r -E "(password|secret|key|token|apiKey)\s*[:=]\s*['\"][^'\"]{8,}" src --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx"; then
+          echo "❌ Found potential hardcoded secrets"
+          echo "Please use environment variables for sensitive data"
+          exit 1
+        fi
+        echo "✅ No hardcoded secrets detected"
+    
+    - name: Check folder naming conventions
+      run: |
+        echo "Checking folder naming conventions..."
+        # Check that folders use kebab-case or camelCase
+        if find src -type d -not -path "*/node_modules/*" | grep -E '/[A-Z][a-z]*[A-Z]' | grep -v -E '/[a-z][a-zA-Z]*$|/[a-z-]+$'; then
+          echo "❌ Found folders that don't follow kebab-case or camelCase naming convention"
+          echo "Folders should use kebab-case or camelCase"
+          exit 1
+        fi
+        echo "✅ All folders follow proper naming conventions"
 ```
 </details>
 
@@ -176,27 +206,79 @@ name: Spell Check
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ staging ]
+    paths:
+    - 'src/**'
+    - '*.md'
+    - 'public/**'
   pull_request:
-    branches: [ main, develop ]
+    branches: [ staging ]
+    paths:
+    - 'src/**'
+    - '*.md'
+    - 'public/**'
 
 jobs:
   spelling:
     runs-on: ubuntu-latest
-
+    
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-
-      - name: Install CSpell
-        run: npm install -g cspell
-
-      - name: Run spell check
-        run: cspell "src/**/*.{ts,tsx,js,jsx}" "**/*.md" "**/*.json" --config .cspell.json
+    - uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+    
+    - name: Install CSpell
+      run: npm install -g cspell
+    
+    - name: Run spell check
+      run: |
+        # Check if .cspell.json exists, create a basic one if not
+        if [ ! -f .cspell.json ]; then
+          echo "Creating basic .cspell.json configuration..."
+          cat > .cspell.json << 'EOF'
+        {
+          "version": "0.2",
+          "language": "en",
+          "words": [
+            "Vite",
+            "TypeScript",
+            "tsx",
+            "jsx",
+            "Redux",
+            "tailwind",
+            "navbar",
+            "useState",
+            "useEffect",
+            "className",
+            "onClick",
+            "onChange",
+            "onSubmit",
+            "href",
+            "src",
+            "alt",
+            "readonly",
+            "autofocus",
+            "autocomplete",
+            "novalidate"
+          ],
+          "ignorePaths": [
+            "node_modules/**",
+            "dist/**",
+            "build/**",
+            "*.min.js",
+            "*.map",
+            "package-lock.json",
+            "yarn.lock"
+          ]
+        }
+        EOF
+        fi
+        
+        # Run spell check on React project files
+        cspell "src/**/*.{ts,tsx,js,jsx}" "*.md" "public/**/*.{html,svg}" --config .cspell.json --exclude "src/**/*.min.js" --exclude "node_modules/**" --exclude "dist/**" --exclude "build/**"
 ```
 </details>
 
@@ -208,9 +290,17 @@ name: Security Audit
 
 on:
   push:
-    branches: [development]
+    branches: [staging]
+    paths:
+      - "src/**"
+      - "package*.json"
+      - "yarn.lock"
   pull_request:
-    branches: [development]
+    branches: [staging]
+    paths:
+      - "src/**"
+      - "package*.json"
+      - "yarn.lock"
 
 jobs:
   osv-trivy-scan:
@@ -226,7 +316,7 @@ jobs:
         continue-on-error: true
         run: |
           if [ -f yarn.lock ]; then
-            osv-scanner --lockfile=api/yarn.lock | tee osv-report.txt
+            osv-scanner --lockfile=yarn.lock | tee osv-report.txt
             # Only fail if vulnerabilities count is nonzero in OSV report
             if grep -E 'Vulnerabilities:[[:space:]]*[1-9][0-9]*' osv-report.txt; then
               echo "VULN_FOUND=true" >> $GITHUB_ENV
@@ -243,6 +333,7 @@ jobs:
           else
             echo "No lockfile found. Skipping vulnerability scan."
           fi
+
       - name: Install Trivy
         run: |
           sudo apt-get update && sudo apt-get install -y wget
@@ -251,13 +342,14 @@ jobs:
       - name: Run Trivy FS scan
         continue-on-error: true
         run: |
-          trivy fs . --exit-code 1 --severity MEDIUM,HIGH,CRITICAL | tee trivy-report.txt
+          trivy fs ./ --exit-code 1 --severity MEDIUM,HIGH,CRITICAL | tee trivy-report.txt
           # Only fail if vulnerabilities count is nonzero in Trivy report summary for lockfiles
           if grep -E '│ (yarn.lock|package-lock.json) │ [^│]+ │[[:space:]]*[1-9][0-9]*[[:space:]]*│' trivy-report.txt; then
             echo "VULN_FOUND=true" >> $GITHUB_ENV
             echo "❌ Vulnerabilities found by Trivy!"
             exit 1
           fi
+
       - name: Send vulnerability report email
         if: env.VULN_FOUND == 'true'
         uses: dawidd6/action-send-mail@v3
@@ -275,6 +367,7 @@ jobs:
           attachments: |
             osv-report.txt
             trivy-report.txt
+
       - name: Fail job if vulnerabilities found
         if: env.VULN_FOUND == 'true'
         run: exit 1
