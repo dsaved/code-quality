@@ -316,7 +316,6 @@ jobs:
             --format HTML \
             --format JSON \
             --out dependency-check-report \
-            --suppression dependency-check-suppressions.xml \
             --enableRetired \
             --enableExperimental
           
