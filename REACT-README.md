@@ -366,9 +366,11 @@ jobs:
       - name: Run OWASP Dependency Check
         continue-on-error: true
         run: |
+          # Create output directory
+          mkdir -p dependency-check-report
+
           ./dependency-check/bin/dependency-check.sh \
             --scan . \
-            --format HTML \
             --format JSON \
             --out dependency-check-report \
             --enableRetired \
@@ -380,6 +382,8 @@ jobs:
             if [ "$VULN_COUNT" -gt 0 ]; then
               echo "VULN_FOUND=true" >> $GITHUB_ENV
               echo "❌ OWASP Dependency Check found $VULN_COUNT vulnerabilities!"
+            else
+              echo "✅ OWASP Dependency Check found no vulnerabilities"
             fi
           fi
 

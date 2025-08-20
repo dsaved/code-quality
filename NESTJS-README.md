@@ -311,20 +311,24 @@ jobs:
       - name: Run OWASP Dependency Check
         continue-on-error: true
         run: |
+          # Create output directory
+          mkdir -p dependency-check-report
+
           ./dependency-check/bin/dependency-check.sh \
             --scan . \
-            --format HTML \
             --format JSON \
             --out dependency-check-report \
             --enableRetired \
             --enableExperimental
-          
+
           # Check if vulnerabilities were found
           if [ -f dependency-check-report/dependency-check-report.json ]; then
             VULN_COUNT=$(jq '.dependencies | map(.vulnerabilities // []) | flatten | length' dependency-check-report/dependency-check-report.json)
             if [ "$VULN_COUNT" -gt 0 ]; then
               echo "VULN_FOUND=true" >> $GITHUB_ENV
               echo "❌ OWASP Dependency Check found $VULN_COUNT vulnerabilities!"
+            else
+              echo "✅ OWASP Dependency Check found no vulnerabilities"
             fi
           fi
 
@@ -348,12 +352,12 @@ jobs:
           from: ${{ secrets.SMTP_MAIL_FROM }}
           body: |
             Security vulnerability scan failed for ${{ github.repository }}.
-            
+
             Tools that found vulnerabilities:
             - OSV Scanner: Check osv-report.txt
             - Trivy: Check trivy-report.txt  
             - OWASP Dependency Check: Check dependency-check-report folder
-            
+
             Please review and remediate the identified vulnerabilities.
           attachments: |
             osv-report.txt
@@ -844,6 +848,7 @@ git commit -m "wip"
 ```
 
 #### For NestJS-specific OWASP checks, you can also add:
+
 ```bash
 # Install and run additional NestJS security tools
 npm install --save-dev @nestjs/cli helmet
