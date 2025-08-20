@@ -301,6 +301,41 @@ jobs:
             echo "❌ Vulnerabilities found by Trivy!"
             exit 1
           fi
+
+      - name: Install OWASP Dependency Check
+        run: |
+          wget -qO dependency-check.zip https://github.com/jeremylong/DependencyCheck/releases/download/v8.4.0/dependency-check-8.4.0-release.zip
+          unzip dependency-check.zip
+          chmod +x dependency-check/bin/dependency-check.sh
+
+      - name: Run OWASP Dependency Check
+        continue-on-error: true
+        run: |
+          ./dependency-check/bin/dependency-check.sh \
+            --scan . \
+            --format HTML \
+            --format JSON \
+            --out dependency-check-report \
+            --suppression dependency-check-suppressions.xml \
+            --enableRetired \
+            --enableExperimental
+          
+          # Check if vulnerabilities were found
+          if [ -f dependency-check-report/dependency-check-report.json ]; then
+            VULN_COUNT=$(jq '.dependencies | map(.vulnerabilities // []) | flatten | length' dependency-check-report/dependency-check-report.json)
+            if [ "$VULN_COUNT" -gt 0 ]; then
+              echo "VULN_FOUND=true" >> $GITHUB_ENV
+              echo "❌ OWASP Dependency Check found $VULN_COUNT vulnerabilities!"
+            fi
+          fi
+
+      - name: Upload OWASP Dependency Check reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: owasp-dependency-check-reports
+          path: dependency-check-report/
+
       - name: Send vulnerability report email
         if: env.VULN_FOUND == 'true'
         uses: dawidd6/action-send-mail@v3
@@ -309,18 +344,28 @@ jobs:
           server_port: 465
           username: ${{ secrets.SMTP_USERNAME }}
           password: ${{ secrets.SMTP_PASSWORD }}
-          subject: "Vulnerability Scan Failed - ${{ github.repository }}"
+          subject: "Security Vulnerability Scan Failed - ${{ github.repository }}"
           to: ${{ secrets.SMTP_MAIL_TO }}
           from: ${{ secrets.SMTP_MAIL_FROM }}
           body: |
-            The vulnerability scan failed for ${{ github.repository }}.
-            See attached reports for details.
+            Security vulnerability scan failed for ${{ github.repository }}.
+            
+            Tools that found vulnerabilities:
+            - OSV Scanner: Check osv-report.txt
+            - Trivy: Check trivy-report.txt  
+            - OWASP Dependency Check: Check dependency-check-report folder
+            
+            Please review and remediate the identified vulnerabilities.
           attachments: |
             osv-report.txt
             trivy-report.txt
+            dependency-check-report/dependency-check-report.html
+
       - name: Fail job if vulnerabilities found
         if: env.VULN_FOUND == 'true'
-        run: exit 1
+        run: |
+          echo "❌ Security vulnerabilities detected! Please review the reports."
+          exit 1
 ```
 
 </details>
@@ -539,15 +584,10 @@ git push origin feature/user-authentication
 
 ```bash
 # Repository Settings → Secrets and variables → Actions
+SNYK_TOKEN=your
 SNYK_TOKEN=your_snyk_token_here
-```
-
-```bash
-# Repository Settings → Branches → Add rule
-# Branch name pattern: main
-# ✅ Require status checks to pass before merging
-# ✅ Require branches to be up to date before merging
-# ✅ Include administrators
+SNYK_TOKEN=your_snyk_token_here
+SNYK_TOKEN=your_snyk_token_here
 ```
 
 ### 3. Configure Branch Protection
@@ -802,6 +842,13 @@ git commit -m "test: add unit tests for auth service"
 git commit -m "fixed stuff"
 git commit -m "updates"
 git commit -m "wip"
+```
+
+#### For NestJS-specific OWASP checks, you can also add:
+```bash
+# Install and run additional NestJS security tools
+npm install --save-dev @nestjs/cli helmet
+npm audit --audit-level=moderate
 ```
 
 ### 🔄 Branch Strategy
