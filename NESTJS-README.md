@@ -54,6 +54,8 @@ your-nestjs-project/
 │   │   └── security.yml             # Security scanning
 │   ├── CODEOWNERS                   # Team ownership rules
 │   └── pull_request_template.md     # PR template
+├── .zap/
+│   └── rules.tsv                    # OWASP ZAP scan rules
 ├── .eslintrc.js                     # Enhanced ESLint config
 ├── .cspell.json                     # Spell check dictionary
 ├── jest.config.js                   # Coverage thresholds
@@ -238,7 +240,7 @@ jobs:
         run: npm install -g cspell
 
       - name: Run spell check
-        run: cspell "src/**/*.{ts,js}" "api/**/*.md" "**/*.json" --config .cspell.json
+        run: cspell "src/**/*.{ts,js}" "**/*.md" "**/*.json" --config .cspell.json
 ```
 
 </details>
@@ -252,14 +254,25 @@ name: Security Audit
 on:
   push:
     branches: [development]
+    paths:
+      - "**"
   pull_request:
     branches: [development]
+    paths:
+      - "**"
 
 jobs:
-  osv-trivy-scan:
+  sast-scan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "yarn"
+          cache-dependency-path: "yarn.lock"
+
       - name: Install OSV Scanner
         run: |
           curl -sSfL https://github.com/google/osv-scanner/releases/latest/download/osv-scanner_linux_amd64 -o osv-scanner
@@ -269,7 +282,7 @@ jobs:
         continue-on-error: true
         run: |
           if [ -f yarn.lock ]; then
-            osv-scanner --lockfile=api/yarn.lock | tee osv-report.txt
+            osv-scanner --lockfile=yarn.lock | tee osv-report.txt
             # Only fail if vulnerabilities count is nonzero in OSV report
             if grep -E 'Vulnerabilities:[[:space:]]*[1-9][0-9]*' osv-report.txt; then
               echo "VULN_FOUND=true" >> $GITHUB_ENV
@@ -286,6 +299,7 @@ jobs:
           else
             echo "No lockfile found. Skipping vulnerability scan."
           fi
+
       - name: Install Trivy
         run: |
           sudo apt-get update && sudo apt-get install -y wget
@@ -301,43 +315,47 @@ jobs:
             echo "❌ Vulnerabilities found by Trivy!"
             exit 1
           fi
-
-      - name: Install OWASP Dependency Check
-        run: |
-          wget -qO dependency-check.zip https://github.com/jeremylong/DependencyCheck/releases/download/v8.4.0/dependency-check-8.4.0-release.zip
-          unzip dependency-check.zip
-          chmod +x dependency-check/bin/dependency-check.sh
+      - name: Install Node.js dependencies
+        run: yarn install
 
       - name: Run OWASP Dependency Check
-        continue-on-error: true
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: "app-name"
+          path: "."
+          format: "JSON"
+          out: "dependency-check-report"
+
+      - name: Check Dependency Check report for vulnerabilities
         run: |
-          # Create output directory
-          mkdir -p dependency-check-report
-
-          ./dependency-check/bin/dependency-check.sh \
-            --scan . \
-            --format JSON \
-            --out dependency-check-report \
-            --enableRetired \
-            --enableExperimental
-
-          # Check if vulnerabilities were found
           if [ -f dependency-check-report/dependency-check-report.json ]; then
-            VULN_COUNT=$(jq '.dependencies | map(.vulnerabilities // []) | flatten | length' dependency-check-report/dependency-check-report.json)
+            VULN_COUNT=$(jq '.dependencies[].vulnerabilities | select(. != null) | length' dependency-check-report/dependency-check-report.json | awk '{s+=$1} END {print s}')
             if [ "$VULN_COUNT" -gt 0 ]; then
               echo "VULN_FOUND=true" >> $GITHUB_ENV
-              echo "❌ OWASP Dependency Check found $VULN_COUNT vulnerabilities!"
-            else
-              echo "✅ OWASP Dependency Check found no vulnerabilities"
+              echo "❌ Vulnerabilities found by Dependency Check!"
             fi
           fi
 
-      - name: Upload OWASP Dependency Check reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: owasp-dependency-check-reports
-          path: dependency-check-report/
+      - name: Summarize Dependency Check vulnerabilities
+        run: |
+          SUMMARY_FILE="dependency-check-summary.txt"
+          if [ -f dependency-check-report/dependency-check-report.json ]; then
+            echo -e "Vulnerable Dependency | Vulnerability ID | Severity | Description\n---------------------|-------------------|----------|------------" > $SUMMARY_FILE
+            jq -r '
+              .dependencies[] |
+              select(.vulnerabilities != null) |
+              .fileName as $dep |
+              .vulnerabilities[] |
+              [$dep, .name, .severity, (.description | gsub("\n"; " "))] |
+              @tsv
+            ' dependency-check-report/dependency-check-report.json | while IFS=$'\t' read -r dep id severity desc; do
+              # Wrap description at 120 chars for readability
+              wrapped_desc=$(echo "$desc" | fold -s -w 120)
+              printf "%s | %s | %s | %s\n\n" "$dep" "$id" "$severity" "$wrapped_desc" >> $SUMMARY_FILE
+            done
+          else
+            echo "No Dependency Check report found." > $SUMMARY_FILE
+          fi
 
       - name: Send vulnerability report email
         if: env.VULN_FOUND == 'true'
@@ -356,24 +374,144 @@ jobs:
             Tools that found vulnerabilities:
             - OSV Scanner: Check osv-report.txt
             - Trivy: Check trivy-report.txt  
-            - OWASP Dependency Check: Check dependency-check-report folder
+            - OWASP Dependency Check: Check dependency-check-summary.txt
 
             Please review and remediate the identified vulnerabilities.
           attachments: |
             osv-report.txt
             trivy-report.txt
-            dependency-check-report/dependency-check-report.html
+            dependency-check-summary.txt
 
       - name: Fail job if vulnerabilities found
         if: env.VULN_FOUND == 'true'
+        run: exit 1
+  dast-scan:
+    runs-on: ubuntu-latest
+    #needs: sast-scan
+
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+
+      - name: Install and build
         run: |
-          echo "❌ Security vulnerabilities detected! Please review the reports."
-          exit 1
+          yarn install
+          yarn build
+      - name: Run database migrations and seed data
+        run: |
+          yarn migration:run
+        env:
+          NODE_ENV: production
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: test_db
+
+      - name: Start NestJS application
+        run: |
+          yarn start:prod &
+
+          # Wait for application to be ready
+          timeout 60 bash -c 'until curl -f http://localhost:3000; do sleep 2; done'
+        env:
+          NODE_ENV: production
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+          DB_NAME: test_db
+          PORT: 3000
+          APP_NAME: 0987654321
+          PRE_SHARED_API_KEY: 0987654321
+          JWT_SECRET: 0987654321
+          JWT_API_SECRET: 0987654321
+          GO_TO_API_URL: 0987654321
+          GO_TO_API_KEY: 0987654321
+
+      - name: Run OWASP ZAP Full Scan
+        uses: zaproxy/action-full-scan@v0.7.0
+        with:
+          target: "http://localhost:3000"
+          rules_file_name: ".zap/rules.tsv"
+          cmd_options: "-a -j"
+          artifact_name: ""  # Disable ZAP's artifact upload
+
+      - name: Upload ZAP results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-results
+          path: |
+            report_html.html
+            report_json.json
 ```
 
 </details>
 
 ### Step 2: Create Configuration Files
+
+<details>
+<summary>📄 <code>.zap/rules.tsv</code> (OWASP ZAP Rules)</summary>
+
+Create the ZAP directory and rules file for security scanning:
+
+```bash
+# Create ZAP configuration directory
+mkdir -p .zap
+```
+
+```tsv
+# .zap/rules.tsv
+# OWASP ZAP Rules Configuration
+# Format: RULE_ID    ACTION    DESCRIPTION
+# Actions: IGNORE, WARN, FAIL
+
+# Common false positives to ignore
+10011    IGNORE    Cookie Without Secure Flag
+10015    IGNORE    Incomplete or No Cache-control and Pragma HTTP Header Set
+10021    IGNORE    X-Content-Type-Options Header Missing
+10020    IGNORE    X-Frame-Options Header Not Set
+10016    IGNORE    Web Browser XSS Protection Not Enabled
+10017    IGNORE    Cross-Domain JavaScript Source File Inclusion
+10035    IGNORE    Strict-Transport-Security Header Not Set
+10063    IGNORE    Permissions Policy Header Not Set
+
+# Development environment specific ignores
+10098    IGNORE    Cross-Domain Misconfiguration
+10055    IGNORE    CSP Scanner: Wildcard Directive
+10038    IGNORE    Content Security Policy (CSP) Header Not Set
+
+# API-specific rules
+10024    WARN      Information Disclosure - Sensitive Information in URL
+10025    WARN      Information Disclosure - Sensitive Information in HTTP Referrer Header
+10027    WARN      Information Disclosure - Suspicious Comments
+
+# Security rules to enforce (FAIL)
+90020    FAIL      Remote Code Execution - CVE-2012-1823
+90019    FAIL      Code Injection
+40018    FAIL      SQL Injection
+40019    FAIL      SQL Injection - MySQL
+40020    FAIL      SQL Injection - Hypersonic SQL
+40021    FAIL      SQL Injection - Oracle
+40022    FAIL      SQL Injection - PostgreSQL
+90018    FAIL      Remote Code Execution - CVE-2014-6271
+```
+
+</details>
 
 <details>
 <summary>📄 <code>.eslintrc.js</code> (Enhanced)</summary>
@@ -457,7 +595,7 @@ module.exports = {
 * @yourteam/backend-team
 
 # API Routes
-/src/api/ @yourteam/api-team
+/src/ @yourteam-team
 
 # Authentication & Security
 /src/auth/ @yourteam/security-team
@@ -503,7 +641,7 @@ Add these scripts to your `package.json`:
 
 ### 🌐 API Naming
 
-- **Endpoints**: `/api/users` ✅ | `/api/Users` ❌
+- **Endpoints**: `/users` ✅ | `/Users` ❌
 - **Routes**: `@Get('user-profile')` ✅ | `@Get('userProfile')` ❌
 
 ## 🛡️ Security Checks
@@ -752,7 +890,7 @@ coverageThreshold: {
     lines: 70,
     statements: 70
   },
-  './src/api/': {    // Path-specific thresholds
+  './src/': {    // Path-specific thresholds
     branches: 90,
     functions: 90
   }
