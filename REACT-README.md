@@ -135,183 +135,213 @@ name: Naming Conventions
 
 on:
   push:
-    branches: [development]
+    branches: [ development ]
     paths:
-      - "src/**"
+    - 'src/**'
   pull_request:
-    branches: [development]
+    branches: [ development ]
     paths:
-      - "src/**"
+    - 'src/**'
 
 jobs:
   naming-conventions:
     runs-on: ubuntu-latest
-
+    
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Check file naming conventions
-        run: |
-          echo "Checking file naming conventions..."
-          ERROR_COUNT=0
-          ERRORS=""
-
-          # Check that .ts/.js files use kebab-case (except hooks starting with "use" which should be camelCase)
-          echo "Checking .ts/.js files for kebab-case naming..."
-          for file in $(find src -name "*.ts" -o -name "*.js" | grep -v node_modules | grep -v '\.spec\.' | grep -v '\.test\.'); do
-            filename=$(basename "$file" .ts)
-            filename=$(basename "$filename" .js)
-            
-            # Check if it's a hook file (starts with "use")
-            if [[ $filename == use* ]]; then
-              # Hooks should be camelCase
-              if [[ ! $filename =~ ^use[A-Z][a-zA-Z]*$ ]]; then
-                ERRORS="$ERRORS\n❌ Hook file $file should follow camelCase naming (e.g., useMyHook.ts)"
-                ERROR_COUNT=$((ERROR_COUNT + 1))
-              fi
-            else
-              # Non-hook files should be kebab-case
-              if [[ ! $filename =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
-                ERRORS="$ERRORS\n❌ File $file should follow kebab-case naming (e.g., my-file.ts)"
-                ERROR_COUNT=$((ERROR_COUNT + 1))
-              fi
+    - uses: actions/checkout@v4
+    
+    - name: Check file naming conventions
+      run: |
+        echo "Checking file naming conventions..."
+        ERROR_COUNT=0
+        ERRORS=""
+        
+        # Check that .ts/.js files use kebab-case (except hooks starting with "use" which should be camelCase)
+        echo "Checking .ts/.js files for kebab-case naming..."
+        for file in $(find src -name "*.ts" -o -name "*.js" | grep -v node_modules | grep -v '\.spec\.' | grep -v '\.test\.'); do
+          filename=$(basename "$file")
+          filename_without_ext="${filename%.*}"
+          
+          # Check if it's a hook file (starts with "use" followed by uppercase letter)
+          if [[ $filename_without_ext =~ ^use[A-Z] ]]; then
+            # For hooks, extract the hook name before any pattern suffixes
+            hook_name=$(echo "$filename_without_ext" | sed -E 's/\.[a-z]+$//')
+            if [[ ! $hook_name =~ ^use[A-Z][a-zA-Z]*$ ]]; then
+              ERRORS="$ERRORS\n❌ Hook file $file should follow camelCase naming (e.g., useMyHook.ts or useMyHook.hook.ts)"
+              ERROR_COUNT=$((ERROR_COUNT + 1))
             fi
-          done
-
-          # Check that .tsx files (components) use kebab-case
-          echo "Checking .tsx files for kebab-case naming..."
-          for file in $(find src -name "*.tsx" | grep -v node_modules); do
-            filename=$(basename "$file" .tsx)
-            if [[ ! $filename =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+          # Check if it's a special pattern file (.slice, .service, .helper, etc.)
+          elif [[ $filename =~ \.[a-z]+\.(ts|js)$ ]]; then
+            # Extract the part before the pattern (e.g., "generated-tin" from "generated-tin.slice.ts")
+            base_name=$(echo "$filename" | sed -E 's/\.[a-z]+\.(ts|js)$//')
+            if [[ ! $base_name =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+              ERRORS="$ERRORS\n❌ File $file should follow kebab-case naming before the pattern (e.g., my-feature.slice.ts)"
+              ERROR_COUNT=$((ERROR_COUNT + 1))
+            fi
+          else
+            # Regular files should be kebab-case
+            if [[ ! $filename_without_ext =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+              ERRORS="$ERRORS\n❌ File $file should follow kebab-case naming (e.g., my-file.ts)"
+              ERROR_COUNT=$((ERROR_COUNT + 1))
+            fi
+          fi
+        done
+        
+        # Check that .tsx files (components) use kebab-case
+        echo "Checking .tsx files for kebab-case naming..."
+        for file in $(find src -name "*.tsx" | grep -v node_modules); do
+          filename=$(basename "$file")
+          filename_without_ext="${filename%.*}"
+          
+          # Check if it's a hook file (starts with "use" followed by uppercase letter)
+          if [[ $filename_without_ext =~ ^use[A-Z] ]]; then
+            # For hooks, extract the hook name before any pattern suffixes
+            hook_name=$(echo "$filename_without_ext" | sed -E 's/\.[a-z]+$//')
+            if [[ ! $hook_name =~ ^use[A-Z][a-zA-Z]*$ ]]; then
+              ERRORS="$ERRORS\n❌ Hook file $file should follow camelCase naming (e.g., useMyHook.tsx or useMyHook.hook.tsx)"
+              ERROR_COUNT=$((ERROR_COUNT + 1))
+            fi
+          # Check if it's a special pattern file (.helper, .service, .slice, etc.)
+          elif [[ $filename =~ \.[a-z]+\.tsx$ ]]; then
+            # Extract the part before the pattern (e.g., "constants" from "constants.helper.tsx")
+            base_name=$(echo "$filename" | sed -E 's/\.[a-z]+\.tsx$//')
+            if [[ ! $base_name =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
+              ERRORS="$ERRORS\n❌ Pattern file $file should follow kebab-case naming before the pattern (e.g., my-constants.helper.tsx)"
+              ERROR_COUNT=$((ERROR_COUNT + 1))
+            fi
+          else
+            # Regular component files should be kebab-case
+            if [[ ! $filename_without_ext =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
               ERRORS="$ERRORS\n❌ Component file $file should follow kebab-case naming (e.g., my-component.tsx)"
               ERROR_COUNT=$((ERROR_COUNT + 1))
             fi
-          done
-
-          if [ $ERROR_COUNT -gt 0 ]; then
-            echo -e "$ERRORS"
-            echo "Found $ERROR_COUNT file naming violations"
-            exit 1
           fi
-
-          echo "✅ All files follow proper naming conventions"
-
-      - name: Check variable naming conventions
-        run: |
-          echo "Checking variable naming conventions..."
-          ERROR_COUNT=0
-          ERRORS=""
-
-          # Check for variable declarations that don't follow camelCase
-          echo "Checking for camelCase variable naming..."
-
-          # Check const, let, var declarations
-          VARIABLE_ERRORS=$(grep -rn -E "(const|let|var)\s+[A-Z_][a-zA-Z0-9_]*\s*=" src --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" | grep -v -E "(const|let|var)\s+[A-Z][A-Z_]*\s*=" | grep -v -E "//.*" | grep -v -E "/\*.*\*/" | head -20 || true)
-          if [ ! -z "$VARIABLE_ERRORS" ]; then
-            ERRORS="$ERRORS\n❌ Found variables that don't follow camelCase naming convention:\n$VARIABLE_ERRORS"
-            ERROR_COUNT=$((ERROR_COUNT + 1))
-          fi
-
-          # Check function declarations
-          FUNCTION_ERRORS=$(grep -rn -E "function\s+[A-Z_][a-zA-Z0-9_]*\s*\(" src --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" | grep -v -E "//.*" | head -20 || true)
-          if [ ! -z "$FUNCTION_ERRORS" ]; then
-            ERRORS="$ERRORS\n❌ Found functions that don't follow camelCase naming convention:\n$FUNCTION_ERRORS"
-            ERROR_COUNT=$((ERROR_COUNT + 1))
-          fi
-
-          # Check arrow function assignments
-          ARROW_FUNCTION_ERRORS=$(grep -rn -E "(const|let)\s+[A-Z_][a-zA-Z0-9_]*\s*=\s*\(" src --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" | grep -v -E "(const|let)\s+[A-Z][A-Z_]*\s*=" | grep -v -E "//.*" | head -20 || true)
-          if [ ! -z "$ARROW_FUNCTION_ERRORS" ]; then
-            ERRORS="$ERRORS\n❌ Found arrow functions that don't follow camelCase naming convention:\n$ARROW_FUNCTION_ERRORS"
-            ERROR_COUNT=$((ERROR_COUNT + 1))
-          fi
-
-          if [ $ERROR_COUNT -gt 0 ]; then
-            echo -e "$ERRORS"
-            echo "Variables should use camelCase (e.g., myVariable, userName)"
-            echo "Functions should use camelCase (e.g., myFunction, getUserData)"
-            echo "Constants can use UPPER_SNAKE_CASE (e.g., API_URL, MAX_COUNT)"
-            exit 1
-          fi
-
-          echo "✅ All variables follow camelCase naming convention"
-
-      - name: Check for console.log statements
-        run: |
-          echo "Checking for console.log statements..."
-          CONSOLE_ERRORS=$(grep -rn "console\.log" src --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" || true)
-          if [ ! -z "$CONSOLE_ERRORS" ]; then
-            echo "❌ Found console.log statements in source code:"
-            echo "$CONSOLE_ERRORS"
-            echo "Please remove console.log statements before committing"
-            exit 1
-          fi
-          echo "✅ No console.log statements found"
-
-      - name: Check for hardcoded secrets
-        run: |
-          echo "Checking for hardcoded secrets and sensitive data..."
-          ERROR_COUNT=0
-          ERRORS=""
-
-          # Check for potential hardcoded secrets, passwords, and API keys
-          SECRET_ERRORS=$(grep -rn -E "(password|secret|key|token|apiKey|api_key|secretKey|secret_key|accessToken|access_token|privateKey|private_key|clientSecret|client_secret)\s*[:=]\s*['\"][^'\"]{8,}" src --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" || true)
-          if [ ! -z "$SECRET_ERRORS" ]; then
-            ERRORS="$ERRORS\n❌ Found potential hardcoded secrets:\n$SECRET_ERRORS"
-            ERROR_COUNT=$((ERROR_COUNT + 1))
-          fi
-
-          # Check for hardcoded URLs that might contain secrets
-          URL_ERRORS=$(grep -rn -E "(https?://[^'\"\s]*:[^'\"\s]*@|mongodb://[^'\"\s]*:[^'\"\s]*@)" src --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" || true)
-          if [ ! -z "$URL_ERRORS" ]; then
-            ERRORS="$ERRORS\n❌ Found URLs with embedded credentials:\n$URL_ERRORS"
-            ERROR_COUNT=$((ERROR_COUNT + 1))
-          fi
-
-          # Check for common secret patterns
-          TOKEN_ERRORS=$(grep -rn -E "(['\"][a-zA-Z0-9]{32,}['\"]|['\"][a-zA-Z0-9+/]{40,}={0,2}['\"])" src --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" | grep -v -E "(test|spec|mock|example)" | head -10 || true)
-          if [ ! -z "$TOKEN_ERRORS" ]; then
-            ERRORS="$ERRORS\n❌ Found potential hardcoded tokens or keys (long random strings):\n$TOKEN_ERRORS"
-            ERROR_COUNT=$((ERROR_COUNT + 1))
-          fi
-
-          # Check for AWS/GCP/Azure credentials
-          CLOUD_ERRORS=$(grep -rn -E "(AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z-_]{35}|ya29\.[0-9A-Za-z-_]+)" src --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" || true)
-          if [ ! -z "$CLOUD_ERRORS" ]; then
-            ERRORS="$ERRORS\n❌ Found cloud provider credentials:\n$CLOUD_ERRORS"
-            ERROR_COUNT=$((ERROR_COUNT + 1))
-          fi
-
-          if [ $ERROR_COUNT -gt 0 ]; then
-            echo -e "$ERRORS"
-            echo "Please use environment variables for sensitive data"
-            echo "Please use environment variables for database connections and API URLs with credentials"
-            echo "Please use environment variables or secure credential management"
-            exit 1
-          fi
-
-          echo "✅ No hardcoded secrets detected"
-
-      - name: Check folder naming conventions
-        run: |
-          echo "Checking folder naming conventions..."
-          ERROR_COUNT=0
-          ERRORS=""
-
-          # Check that folders use kebab-case or camelCase
-          FOLDER_ERRORS=$(find src -type d -not -path "*/node_modules/*" | grep -E '/[A-Z][a-z]*[A-Z]' | grep -v -E '/[a-z][a-zA-Z]*$|/[a-z-]+$' || true)
-          if [ ! -z "$FOLDER_ERRORS" ]; then
-            ERRORS="$ERRORS\n❌ Found folders that don't follow kebab-case or camelCase naming convention:\n$FOLDER_ERRORS"
-            ERROR_COUNT=$((ERROR_COUNT + 1))
-          fi
-
-          if [ $ERROR_COUNT -gt 0 ]; then
-            echo -e "$ERRORS"
-            echo "Folders should use kebab-case or camelCase"
-            exit 1
-          fi
-
-          echo "✅ All folders follow proper naming conventions"
+        done
+        
+        if [ $ERROR_COUNT -gt 0 ]; then
+          echo -e "$ERRORS"
+          echo "Found $ERROR_COUNT file naming violations"
+          exit 1
+        fi
+        
+        echo "✅ All files follow proper naming conventions"
+    
+    - name: Check variable naming conventions
+      run: |
+        echo "Checking variable naming conventions..."
+        ERROR_COUNT=0
+        ERRORS=""
+        
+        # Check for variable declarations that don't follow camelCase
+        echo "Checking for camelCase variable naming..."
+        
+        # Check const, let, var declarations
+        VARIABLE_ERRORS=$(grep -rn -E "(const|let|var)\s+[A-Z_][a-zA-Z0-9_]*\s*=" src --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" | grep -v -E "(const|let|var)\s+[A-Z][A-Z_]*\s*=" | grep -v -E "//.*" | grep -v -E "/\*.*\*/" | head -20 || true)
+        if [ ! -z "$VARIABLE_ERRORS" ]; then
+          ERRORS="$ERRORS\n❌ Found variables that don't follow camelCase naming convention:\n$VARIABLE_ERRORS"
+          ERROR_COUNT=$((ERROR_COUNT + 1))
+        fi
+        
+        # Check function declarations
+        FUNCTION_ERRORS=$(grep -rn -E "function\s+[A-Z_][a-zA-Z0-9_]*\s*\(" src --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" | grep -v -E "//.*" | head -20 || true)
+        if [ ! -z "$FUNCTION_ERRORS" ]; then
+          ERRORS="$ERRORS\n❌ Found functions that don't follow camelCase naming convention:\n$FUNCTION_ERRORS"
+          ERROR_COUNT=$((ERROR_COUNT + 1))
+        fi
+        
+        # Check arrow function assignments
+        ARROW_FUNCTION_ERRORS=$(grep -rn -E "(const|let)\s+[A-Z_][a-zA-Z0-9_]*\s*=\s*\(" src --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" | grep -v -E "(const|let)\s+[A-Z][A-Z_]*\s*=" | grep -v -E "//.*" | head -20 || true)
+        if [ ! -z "$ARROW_FUNCTION_ERRORS" ]; then
+          ERRORS="$ERRORS\n❌ Found arrow functions that don't follow camelCase naming convention:\n$ARROW_FUNCTION_ERRORS"
+          ERROR_COUNT=$((ERROR_COUNT + 1))
+        fi
+        
+        if [ $ERROR_COUNT -gt 0 ]; then
+          echo -e "$ERRORS"
+          echo "Variables should use camelCase (e.g., myVariable, userName)"
+          echo "Functions should use camelCase (e.g., myFunction, getUserData)"
+          echo "Constants can use UPPER_SNAKE_CASE (e.g., API_URL, MAX_COUNT)"
+          exit 1
+        fi
+        
+        echo "✅ All variables follow camelCase naming convention"
+    
+    - name: Check for console.log statements
+      run: |
+        echo "Checking for console.log statements..."
+        CONSOLE_ERRORS=$(grep -rn "console\.log" src --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" || true)
+        if [ ! -z "$CONSOLE_ERRORS" ]; then
+          echo "❌ Found console.log statements in source code:"
+          echo "$CONSOLE_ERRORS"
+          echo "Please remove console.log statements before committing"
+          exit 1
+        fi
+        echo "✅ No console.log statements found"
+    
+    - name: Check for hardcoded secrets
+      run: |
+        echo "Checking for hardcoded secrets and sensitive data..."
+        ERROR_COUNT=0
+        ERRORS=""
+        
+        # Check for potential hardcoded secrets, passwords, and API keys
+        SECRET_ERRORS=$(grep -rn -E "(password|secret|key|token|apiKey|api_key|secretKey|secret_key|accessToken|access_token|privateKey|private_key|clientSecret|client_secret)\s*[:=]\s*['\"][^'\"]{8,}" src --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" || true)
+        if [ ! -z "$SECRET_ERRORS" ]; then
+          ERRORS="$ERRORS\n❌ Found potential hardcoded secrets:\n$SECRET_ERRORS"
+          ERROR_COUNT=$((ERROR_COUNT + 1))
+        fi
+        
+        # Check for hardcoded URLs that might contain secrets
+        URL_ERRORS=$(grep -rn -E "(https?://[^'\"\s]*:[^'\"\s]*@|mongodb://[^'\"\s]*:[^'\"\s]*@)" src --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" || true)
+        if [ ! -z "$URL_ERRORS" ]; then
+          ERRORS="$ERRORS\n❌ Found URLs with embedded credentials:\n$URL_ERRORS"
+          ERROR_COUNT=$((ERROR_COUNT + 1))
+        fi
+        
+        # Check for common secret patterns
+        TOKEN_ERRORS=$(grep -rn -E "(['\"][a-zA-Z0-9]{32,}['\"]|['\"][a-zA-Z0-9+/]{40,}={0,2}['\"])" src --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" | grep -v -E "(test|spec|mock|example)" | head -10 || true)
+        if [ ! -z "$TOKEN_ERRORS" ]; then
+          ERRORS="$ERRORS\n❌ Found potential hardcoded tokens or keys (long random strings):\n$TOKEN_ERRORS"
+          ERROR_COUNT=$((ERROR_COUNT + 1))
+        fi
+        
+        # Check for AWS/GCP/Azure credentials
+        CLOUD_ERRORS=$(grep -rn -E "(AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z-_]{35}|ya29\.[0-9A-Za-z-_]+)" src --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" || true)
+        if [ ! -z "$CLOUD_ERRORS" ]; then
+          ERRORS="$ERRORS\n❌ Found cloud provider credentials:\n$CLOUD_ERRORS"
+          ERROR_COUNT=$((ERROR_COUNT + 1))
+        fi
+        
+        if [ $ERROR_COUNT -gt 0 ]; then
+          echo -e "$ERRORS"
+          echo "Please use environment variables for sensitive data"
+          echo "Please use environment variables for database connections and API URLs with credentials"
+          echo "Please use environment variables or secure credential management"
+          exit 1
+        fi
+        
+        echo "✅ No hardcoded secrets detected"
+    
+    - name: Check folder naming conventions
+      run: |
+        echo "Checking folder naming conventions..."
+        ERROR_COUNT=0
+        ERRORS=""
+        
+        # Check that folders use kebab-case or camelCase
+        FOLDER_ERRORS=$(find src -type d -not -path "*/node_modules/*" | grep -E '/[A-Z][a-z]*[A-Z]' | grep -v -E '/[a-z][a-zA-Z]*$|/[a-z-]+$' || true)
+        if [ ! -z "$FOLDER_ERRORS" ]; then
+          ERRORS="$ERRORS\n❌ Found folders that don't follow kebab-case or camelCase naming convention:\n$FOLDER_ERRORS"
+          ERROR_COUNT=$((ERROR_COUNT + 1))
+        fi
+        
+        if [ $ERROR_COUNT -gt 0 ]; then
+          echo -e "$ERRORS"
+          echo "Folders should use kebab-case or camelCase"
+          exit 1
+        fi
+        
+        echo "✅ All folders follow proper naming conventions"
 ```
 
 </details>
